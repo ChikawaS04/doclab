@@ -2,26 +2,31 @@ package com.doclab.doclab.model;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class Document {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue
+    @org.hibernate.annotations.GenericGenerator(name = "uuid2", strategy = "uuid2")
+    @Column(columnDefinition = "UUID")
+    private java.util.UUID id;
 
     private String fileName;
     private String filePath;
     private String fileType;
     private String docType;
-
     private LocalDateTime uploadDate;
-
     private String status; // Pending, Processing, Completed, Failed
-
     private String titleGenerated;
-
     private boolean summaryGenerated;
+
+    @OneToMany(mappedBy = "document", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ExtractedField> extractedFields = new ArrayList<>();
+
 
     // Constructors
     public Document() {}
@@ -40,11 +45,11 @@ public class Document {
 
     // Getters and Setters (Alt + Insert in IntelliJ)
 
-    public Long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -110,5 +115,13 @@ public class Document {
 
     public void setSummaryGenerated(boolean summaryGenerated) {
         this.summaryGenerated = summaryGenerated;
+    }
+
+    public List<ExtractedField> getExtractedFields() {
+        return extractedFields;
+    }
+
+    public void setExtractedFields(List<ExtractedField> extractedFields) {
+        this.extractedFields = extractedFields;
     }
 }
