@@ -6,13 +6,12 @@ import java.util.UUID;
 
 @Entity
 @Table(
-        name = "extracted_field",
+        name = "summary",
         indexes = {
-                @Index(name = "idx_extracted_field_document_id", columnList = "document_id"),
-                @Index(name = "idx_extracted_field_field_name", columnList = "field_name")
+                @Index(name = "idx_summary_document_id", columnList = "document_id")
         }
 )
-public class ExtractedField {
+public class Summary {
 
     @Id
     @GeneratedValue
@@ -24,26 +23,22 @@ public class ExtractedField {
     @JoinColumn(name = "document_id", nullable = false, columnDefinition = "UUID")
     private Document document;
 
-    @Column(name = "field_name", nullable = false)
-    private String fieldName;
+    @Column(nullable = false)
+    private String title;
 
     @Lob
-    @Column(name = "field_value", nullable = false)
-    private String fieldValue;
-
-    @Column(name = "page_number")
-    private Integer pageNumber;
+    @Column(name = "summary_text", nullable = false)
+    private String summaryText;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    public ExtractedField() {}
+    public Summary() {}
 
-    public ExtractedField(Document document, String fieldName, String fieldValue, Integer pageNumber) {
+    public Summary(Document document, String title, String summaryText) {
         this.document = document;
-        this.fieldName = fieldName;
-        this.fieldValue = fieldValue;
-        this.pageNumber = pageNumber;
+        this.title = title;
+        this.summaryText = summaryText;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -54,14 +49,11 @@ public class ExtractedField {
     public Document getDocument() { return document; }
     public void setDocument(Document document) { this.document = document; }
 
-    public String getFieldName() { return fieldName; }
-    public void setFieldName(String fieldName) { this.fieldName = fieldName; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
-    public String getFieldValue() { return fieldValue; }
-    public void setFieldValue(String fieldValue) { this.fieldValue = fieldValue; }
-
-    public Integer getPageNumber() { return pageNumber; }
-    public void setPageNumber(Integer pageNumber) { this.pageNumber = pageNumber; }
+    public String getSummaryText() { return summaryText; }
+    public void setSummaryText(String summaryText) { this.summaryText = summaryText; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
