@@ -53,42 +53,32 @@ public class Document {
 
     // Getters & setters(Alt + Insert in IntelliJ)
     public UUID getId() {return id; }
-
     public void setId(UUID id) {this.id = id; }
 
     public String getFileName() {return fileName; }
-
     public void setFileName(String fileName) {this.fileName = fileName; }
 
     public String getFilePath() {return filePath; }
-
     public void setFilePath(String filePath) {this.filePath = filePath; }
 
     public String getFileType() {return fileType; }
-
     public void setFileType(String fileType) {this.fileType = fileType; }
 
     public String getDocType() {return docType; }
-
     public void setDocType(String docType) {this.docType = docType; }
 
     public LocalDateTime getUploadDate() {return uploadDate; }
-
     public void setUploadDate(LocalDateTime uploadDate) {this.uploadDate = uploadDate; }
 
     public String getStatus() {return status; }
-
     public void setStatus(String status) {this.status = status; }
 
     public String getTitleGenerated() {return titleGenerated; }
-
     public void setTitleGenerated(String titleGenerated) {this.titleGenerated = titleGenerated; }
 
-    public boolean isSummaryGenerated() {return summaryGenerated; }
-
+    public boolean getSummaryGenerated() {return summaryGenerated; }
     public void setSummaryGenerated(boolean summaryGenerated) {this.summaryGenerated = summaryGenerated; }
 
     public List<ExtractedField> getExtractedFields() {return extractedFields; }
-
     public void setExtractedFields(List<ExtractedField> extractedFields) {this.extractedFields = extractedFields; }
 }
