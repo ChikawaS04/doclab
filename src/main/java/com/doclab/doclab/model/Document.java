@@ -51,6 +51,9 @@ public class Document {
     @Column(nullable = false) // "UPLOADED","PROCESSING","PROCESSED","FAILED"
     private String status;
 
+    @Column(name = "last_error", length = 2000)
+    private String lastError;
+
     @OneToMany(mappedBy = "document", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ExtractedField> extractedFields = new ArrayList<>();
 

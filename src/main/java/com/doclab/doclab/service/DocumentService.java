@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -23,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
+@Slf4j
 @Service
 public class DocumentService {
 
@@ -77,35 +80,40 @@ public class DocumentService {
         try {
             var resp = pythonApiClient.process(resource, document.getFileName());
 
-            // Summary (always present; empty string allowed)
+            // --- Summary
             String text = resp.getSummary() == null ? "" : resp.getSummary();
             String inferredTitle = (document.getFileName() != null && !document.getFileName().isBlank())
                     ? document.getFileName() : "Untitled";
-
             Summary sum = new Summary();
             sum.setTitle(inferredTitle);
             sum.setSummaryText(text);
-            document.addSummary(sum);  // <-- helper keeps both sides in sync
+            document.addSummary(sum);
 
-            // Extracted fields
+            // --- Extracted fields
             if (resp.getEntities() != null) {
                 resp.getEntities().forEach(e -> {
                     ExtractedField ef = new ExtractedField();
                     ef.setFieldName(e.getLabel());
                     ef.setFieldValue(e.getText());
-                    ef.setPageNumber(null); // for now
-                    document.addExtractedField(ef); // <-- helper
+                    ef.setPageNumber(null);
+                    document.addExtractedField(ef);
                 });
             }
 
             setStatus(document, "PROCESSED");
-            documentRepository.save(document); // <-- one save; cascade persists children
+            documentRepository.save(document);          // cascade saves children
 
         } catch (Exception ex) {
+            String traceId = MDC.get("traceId");        // may be null if called outside controller
+            String msg = (ex.getMessage() != null) ? ex.getMessage() : ex.getClass().getSimpleName();
+
             setStatus(document, "FAILED");
-            try { document.getClass().getMethod("setLastError", String.class).invoke(document, ex.getMessage()); }
-            catch (Exception ignore) {}
+            document.setLastError(msg);
             documentRepository.save(document);
+
+            log.error("NLP processing failed traceId={} docId={} err={}",
+                    traceId, document.getId(), msg, ex);
+            // do NOT rethrow (MVP) so controller can still return 200 with status=FAILED if desired
         }
     }
 

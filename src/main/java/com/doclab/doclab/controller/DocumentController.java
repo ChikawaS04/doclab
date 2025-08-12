@@ -10,6 +10,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.MDC;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.UUID;
 
 import java.io.IOException;
@@ -33,27 +36,31 @@ public class DocumentController {
         this.documentService = documentService;
     }
 
+    private static final Logger log = LoggerFactory.getLogger(DocumentController.class);
+
     // --- POST /api/documents/upload ---
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> upload(@Validated @ModelAttribute UploadRequest req) throws IOException {
-        MultipartFile file = req.getFile();
+        String traceId = UUID.randomUUID().toString();
+        MDC.put("traceId", traceId);                    // <-- add traceId for the whole request
+        try {
+            MultipartFile file = req.getFile();
+            // (your existing validations...)
 
-        if (file == null || file.isEmpty()) {
-            return ResponseEntity.badRequest().body("File is required.");
+            Document saved = documentService.save(req);
+            documentService.process(saved);             // no signature change needed
+
+            log.info("Upload processed ok traceId={} docId={}", traceId, saved.getId());
+            return ResponseEntity.ok(DocumentDTO.from(saved));
+
+        } catch (Exception e) {
+            log.error("Upload failed traceId={}", traceId, e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Upload failed. traceId=" + traceId);
+        } finally {
+            MDC.clear();
         }
-        if (file.getContentType() == null || !ALLOWED.contains(file.getContentType())) {
-            return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-                    .body("Only PDF, DOCX, and TXT are allowed.");
-        }
-
-        // 1) Save file + Document
-        Document saved = documentService.save(req);
-
-        // 2) Trigger NLP + persistence of results
-        documentService.process(saved);  // sync MVP
-
-        // 3) Return minimal, frontend-safe DTO
-        return ResponseEntity.ok(DocumentDTO.from(saved));
     }
 
     // --- GET /api/documents ---
