@@ -14,10 +14,14 @@ import com.doclab.doclab.util.FileStorageUtil;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Optional;
+import java.util.UUID;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 
 @Service
 public class DocumentService {
@@ -111,4 +115,11 @@ public class DocumentService {
         documentRepository.save(document);
     }
 
+    public List<Document> findAll() {
+        return documentRepository.findAll();
+    }
+
+    public Optional<Document> findById(UUID id) {
+        return documentRepository.findById(id);
+    }
 }

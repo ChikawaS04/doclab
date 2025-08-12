@@ -10,27 +10,30 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.UUID;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/documents")
-public class UploadController {
+public class DocumentController {
 
     private static final Set<String> ALLOWED = Set.of(
             "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "text/plain"
     );
 
     private final DocumentService documentService;
 
-    public UploadController(DocumentService documentService) {
+    public DocumentController(DocumentService documentService) {
         this.documentService = documentService;
     }
 
-    /** Accepts multipart/form-data bound to UploadRequest (file + optional docType). */
+    // --- POST /api/documents/upload ---
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> upload(@Validated @ModelAttribute UploadRequest req) throws IOException {
         MultipartFile file = req.getFile();
@@ -43,36 +46,37 @@ public class UploadController {
                     .body("Only PDF, DOCX, and TXT are allowed.");
         }
 
-        // 1) Save metadata + file to disk
+        // 1) Save file + Document
         Document saved = documentService.save(req);
 
-        // 2) Process via Python (synchronous MVP)
-        documentService.process(saved);
+        // 2) Trigger NLP + persistence of results
+        documentService.process(saved);  // sync MVP
 
-        // 3) Return a DTO (adjust mapping if you already have a mapper)
-        DocumentDTO dto = DocumentDTO.from(saved); // or map inline if you don't have this
-        return ResponseEntity.ok(dto);
+        // 3) Return minimal, frontend-safe DTO
+        return ResponseEntity.ok(DocumentDTO.from(saved));
     }
-}
 
-
-
-    /*
-    // Get all documents (will use pagination later)
+    // --- GET /api/documents ---
     @GetMapping
-    public ResponseEntity<List<DocumentDTO>> getAll() {
-        List<DocumentDTO> docs = documentRepository.findAll()
+    public List<DocumentDTO> list() {
+        // simple list for Phase 3; pagination can come in Phase 4
+        return documentService.findAll()
                 .stream()
-                .map(DocumentDTO::new)
+                .map(DocumentDTO::from)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(docs);
     }
 
-    // Get a single document by ID
     @GetMapping("/{id}")
     public ResponseEntity<DocumentDTO> getById(@PathVariable UUID id) {
-        return documentRepository.findById(id)
-                .map(doc -> ResponseEntity.ok(new DocumentDTO(doc)))
-                .orElse(ResponseEntity.notFound().build());
+        return documentService.findById(id)
+                .map(doc -> ResponseEntity.ok(DocumentDTO.from(doc)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
-    */
+
+    // (Optional) simple JSON error for uncaught exceptions
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<?> handleAny(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Request failed: " + ex.getMessage());
+    }
+}
