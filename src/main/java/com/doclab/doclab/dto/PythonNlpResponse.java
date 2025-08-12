@@ -11,5 +11,5 @@ public class PythonNlpResponse {
     private List<NlpEntity> entities;
     private Integer pages;
     private NlpMeta meta;
-    private String summary;          // always present (may be "")
+    private String summary;          // always present (maybe "")
 }

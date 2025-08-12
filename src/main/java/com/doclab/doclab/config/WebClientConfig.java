@@ -21,7 +21,7 @@ import java.time.Duration;
 public class WebClientConfig {
 
     @Bean
-    public WebClient nlpWebClient(@Qualifier("nlpProperties") NlpProperties props) {
+    public WebClient nlpWebClient(NlpProperties props) {
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, props.getConnectTimeoutMs())
                 .responseTimeout(Duration.ofMillis(props.getReadTimeoutMs()))
