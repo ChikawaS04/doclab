@@ -1,6 +1,9 @@
 package com.doclab.doclab.model;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -12,6 +15,9 @@ import java.util.UUID;
                 @Index(name = "idx_extracted_field_field_name", columnList = "field_name")
         }
 )
+@Getter
+@Setter
+@NoArgsConstructor
 public class ExtractedField {
 
     @Id
@@ -37,8 +43,6 @@ public class ExtractedField {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    public ExtractedField() {}
-
     public ExtractedField(Document document, String fieldName, String fieldValue, Integer pageNumber) {
         this.document = document;
         this.fieldName = fieldName;
@@ -46,23 +50,4 @@ public class ExtractedField {
         this.pageNumber = pageNumber;
         this.createdAt = LocalDateTime.now();
     }
-
-    // Getters & setters(Alt + Insert in IntelliJ)
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-
-    public Document getDocument() { return document; }
-    public void setDocument(Document document) { this.document = document; }
-
-    public String getFieldName() { return fieldName; }
-    public void setFieldName(String fieldName) { this.fieldName = fieldName; }
-
-    public String getFieldValue() { return fieldValue; }
-    public void setFieldValue(String fieldValue) { this.fieldValue = fieldValue; }
-
-    public Integer getPageNumber() { return pageNumber; }
-    public void setPageNumber(Integer pageNumber) { this.pageNumber = pageNumber; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }
