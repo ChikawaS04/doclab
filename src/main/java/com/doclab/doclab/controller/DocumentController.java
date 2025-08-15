@@ -94,7 +94,17 @@ public class DocumentController {
     @GetMapping("/{id}")
     public ResponseEntity<DocumentDTO> getById(@PathVariable UUID id) {
         return documentService.findById(id)
-                .map(doc -> ResponseEntity.ok(DocumentDTO.from(doc)))
+                .map(doc -> {
+                    DocumentDTO dto = DocumentDTO.from(doc);
+                    // pre-wire a download link (endpoint will be added later)
+                    String url = org.springframework.web.servlet.support.ServletUriComponentsBuilder
+                            .fromCurrentContextPath()
+                            .path("/api/documents/{id}/download")
+                            .buildAndExpand(doc.getId())
+                            .toUriString();
+                    dto.setDownloadUrl(url);
+                    return ResponseEntity.ok(dto);
+                })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

@@ -11,6 +11,8 @@ public class DocumentDTO {
     private String docType;
     private LocalDateTime uploadDate;
     private String status;
+    private String downloadUrl;
+
 
     public DocumentDTO(Document d) {
         this.id = d.getId();
@@ -43,4 +45,7 @@ public class DocumentDTO {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getDownloadUrl() { return downloadUrl; }
+    public void setDownloadUrl(String downloadUrl) { this.downloadUrl = downloadUrl; }
 }
