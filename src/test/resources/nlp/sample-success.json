@@ -1,0 +1,11 @@
+{
+  "summary": "This is a short summary extracted from the document.",
+  "meta": {
+    "docType": "resume",
+    "model": "mini-nlp"
+  },
+  "entities": [
+    {"label": "NAME", "text": "Jane Doe"},
+    {"label": "EMAIL", "text": "jane@example.com"}
+  ]
+}

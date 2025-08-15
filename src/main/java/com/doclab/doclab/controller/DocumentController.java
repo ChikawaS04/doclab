@@ -90,14 +90,6 @@ public class DocumentController {
     }
 
     // --- GET /api/documents ---
-    @GetMapping
-    public List<DocumentDTO> list() {
-        // simple list for Phase 3; pagination can come in Phase 4
-        return documentService.findAll()
-                .stream()
-                .map(DocumentDTO::from)
-                .collect(Collectors.toList());
-    }
 
     @GetMapping("/{id}")
     public ResponseEntity<DocumentDTO> getById(@PathVariable UUID id) {
@@ -106,6 +98,14 @@ public class DocumentController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<DocumentDTO>> list() {
+        var docs = documentService.findAllSorted()
+                .stream()
+                .map(DocumentDTO::from)
+                .toList();
+        return ResponseEntity.ok(docs);
+    }
     // (Optional) simple JSON error for uncaught exceptions
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleAny(Exception ex) {

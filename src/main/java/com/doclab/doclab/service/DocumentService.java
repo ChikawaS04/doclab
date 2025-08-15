@@ -36,20 +36,23 @@ public class DocumentService {
     private final PythonApiClient pythonApiClient;
     private final SummaryRepository summaryRepository;
     private final ExtractedFieldRepository extractedFieldRepository;
+    private final NlpMapper nlpMapper;
 
     public DocumentService(
             DocumentRepository documentRepository,
             FileStorageUtil fileStorageUtil,
             PythonApiClient pythonApiClient,
             SummaryRepository summaryRepository,
-            ExtractedFieldRepository extractedFieldRepository
+            ExtractedFieldRepository extractedFieldRepository, NlpMapper nlpMapper
     ) {
         this.documentRepository = documentRepository;
         this.fileStorageUtil = fileStorageUtil;
         this.pythonApiClient = pythonApiClient;
         this.summaryRepository = summaryRepository;
         this.extractedFieldRepository = extractedFieldRepository;
+        this.nlpMapper = nlpMapper;
     }
+
 
     /** Saves the uploaded file + Document row only (no NLP). */
     public Document save(UploadRequest req) throws IOException {
@@ -76,44 +79,42 @@ public class DocumentService {
     public void process(Document document) {
         setStatus(document, "PROCESSING");
 
+        // Guard: file path must exist
+        if (document.getFilePath() == null || document.getFilePath().isBlank()) {
+            document.setLastError("Missing file path for document");
+            setStatus(document, "FAILED");
+            documentRepository.save(document);
+            return;
+        }
+
         var resource = new FileSystemResource(Path.of(document.getFilePath()));
         try {
             var resp = pythonApiClient.process(resource, document.getFileName());
 
-            // --- Summary
-            String text = resp.getSummary() == null ? "" : resp.getSummary();
-            String inferredTitle = (document.getFileName() != null && !document.getFileName().isBlank())
-                    ? document.getFileName() : "Untitled";
-            Summary sum = new Summary();
-            sum.setTitle(inferredTitle);
-            sum.setSummaryText(text);
-            document.addSummary(sum);
+            // --- Map using NlpMapper (title = filename without extension; summary fallback = "")
+            var summary = nlpMapper.toSummary(document, resp);
+            document.addSummary(summary);
 
-            // --- Extracted fields
-            if (resp.getEntities() != null) {
-                resp.getEntities().forEach(e -> {
-                    ExtractedField ef = new ExtractedField();
-                    ef.setFieldName(e.getLabel());
-                    ef.setFieldValue(e.getText());
-                    ef.setPageNumber(null);
-                    document.addExtractedField(ef);
-                });
-            }
+            var fields = nlpMapper.toFields(document, resp);
+            fields.forEach(document::addExtractedField);
 
             setStatus(document, "PROCESSED");
-            documentRepository.save(document);          // cascade saves children
+            document.setLastError(null);
+            documentRepository.save(document); // cascades children
 
         } catch (Exception ex) {
-            String traceId = MDC.get("traceId");        // may be null if called outside controller
+            String traceId = MDC.get("traceId"); // may be null outside controller
             String msg = (ex.getMessage() != null) ? ex.getMessage() : ex.getClass().getSimpleName();
+
+            // keep within DB column (VARCHAR 2000)
+            if (msg.length() > 1990) msg = msg.substring(0, 1990) + "...";
 
             setStatus(document, "FAILED");
             document.setLastError(msg);
             documentRepository.save(document);
 
-            log.error("NLP processing failed traceId={} docId={} err={}",
-                    traceId, document.getId(), msg, ex);
-            // do NOT rethrow (MVP) so controller can still return 200 with status=FAILED if desired
+            log.error("NLP processing failed traceId={} docId={} err={}", traceId, document.getId(), msg, ex);
+            // MVP: do NOT rethrow so controller can return 200 w/ status=FAILED
         }
     }
 
@@ -130,4 +131,17 @@ public class DocumentService {
     public Optional<Document> findById(UUID id) {
         return documentRepository.findById(id);
     }
+
+    @Transactional(readOnly = true)
+    public List<Document> findAllSorted() {
+        return documentRepository.findAllByOrderByUploadDateDesc();
+    }
+
+    /*
+    (Prep for Day 6)
+    @Transactional(readOnly = true)
+    public Optional<Document> findById(UUID id) {
+        return documentRepository.findById(id);
+    }
+     */
 }
