@@ -1,12 +1,8 @@
 package com.doclab.doclab.service;
 
 import com.doclab.doclab.client.PythonApiClient;
-import com.doclab.doclab.dto.PythonNlpResponse;
 import com.doclab.doclab.dto.UploadRequest;
 import com.doclab.doclab.model.Document;
-import com.doclab.doclab.model.DocumentStatus;
-import com.doclab.doclab.model.ExtractedField;
-import com.doclab.doclab.model.Summary;
 import com.doclab.doclab.repository.DocumentRepository;
 import com.doclab.doclab.repository.ExtractedFieldRepository;
 import com.doclab.doclab.repository.SummaryRepository;
@@ -14,6 +10,7 @@ import com.doclab.doclab.util.FileStorageUtil;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import static com.doclab.doclab.model.DocumentStatus.*;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +19,6 @@ import org.slf4j.MDC;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 
 @Slf4j
@@ -77,12 +73,12 @@ public class DocumentService {
      */
     @Transactional
     public void process(Document document) {
-        setStatus(document, "PROCESSING");
+        setStatus(document, PROCESSING);
 
         // Guard: file path must exist
         if (document.getFilePath() == null || document.getFilePath().isBlank()) {
             document.setLastError("Missing file path for document");
-            setStatus(document, "FAILED");
+            setStatus(document, FAILED);
             documentRepository.save(document);
             return;
         }
@@ -98,7 +94,7 @@ public class DocumentService {
             var fields = nlpMapper.toFields(document, resp);
             fields.forEach(document::addExtractedField);
 
-            setStatus(document, "PROCESSED");
+            setStatus(document, PROCESSED);
             document.setLastError(null);
             documentRepository.save(document); // cascades children
 

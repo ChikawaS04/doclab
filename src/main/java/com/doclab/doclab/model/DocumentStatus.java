@@ -1,5 +1,9 @@
 package com.doclab.doclab.model;
 
-public enum DocumentStatus {
-    UPLOADED, PROCESSING, PROCESSED, FAILED
+public final class DocumentStatus {
+    private DocumentStatus() {}
+    public static final String UPLOADED   = "UPLOADED";
+    public static final String PROCESSING = "PROCESSING";
+    public static final String PROCESSED  = "PROCESSED";
+    public static final String FAILED     = "FAILED";
 }
