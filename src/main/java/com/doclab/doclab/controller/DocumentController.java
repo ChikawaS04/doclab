@@ -1,9 +1,13 @@
 package com.doclab.doclab.controller;
 
+import com.doclab.doclab.api.PageResponse;
 import com.doclab.doclab.dto.DocumentDTO;
 import com.doclab.doclab.dto.UploadRequest;
 import com.doclab.doclab.model.Document;
 import com.doclab.doclab.service.DocumentService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -147,4 +151,11 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Request failed: " + ex.getMessage());
     }
+
+    @GetMapping
+    public ResponseEntity<PageResponse<DocumentDTO>> list(
+            @PageableDefault(sort = "uploadDate", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(documentService.list2(pageable));
+    }
+
 }

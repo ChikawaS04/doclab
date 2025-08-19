@@ -1,6 +1,9 @@
 package com.doclab.doclab.service;
 
+import com.doclab.doclab.api.PageResponse;
+import org.springframework.data.domain.Page;
 import com.doclab.doclab.client.PythonApiClient;
+import com.doclab.doclab.dto.DocumentDTO;
 import com.doclab.doclab.dto.UploadRequest;
 import com.doclab.doclab.model.Document;
 import com.doclab.doclab.repository.DocumentRepository;
@@ -8,6 +11,7 @@ import com.doclab.doclab.repository.ExtractedFieldRepository;
 import com.doclab.doclab.repository.SummaryRepository;
 import com.doclab.doclab.util.FileStorageUtil;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import static com.doclab.doclab.model.DocumentStatus.*;
@@ -15,7 +19,6 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -131,6 +134,13 @@ public class DocumentService {
     @Transactional(readOnly = true)
     public List<Document> findAllSorted() {
         return documentRepository.findAllByOrderByUploadDateDesc();
+    }
+
+    public PageResponse<DocumentDTO> list2(Pageable pageable) {
+        Page<DocumentDTO> p = documentRepository.findAll(pageable).map(DocumentDTO::from);
+        return new PageResponse<>(
+                p.getContent(), p.getNumber(), p.getSize(), p.getTotalElements(), p.getTotalPages(), p.isLast()
+        );
     }
 
     /*
