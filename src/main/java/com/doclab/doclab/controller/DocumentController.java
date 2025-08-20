@@ -94,14 +94,20 @@ public class DocumentController {
 
             // save + process
             saved = documentService.save(req);
-            documentService.process(saved); // your existing pipeline
+            documentService.process(saved);
+
+            // 🔁 Re-fetch fresh state (status, summaries, fields, lastError)
+            Document finalSaved = saved;
+            var refreshed = documentService.findById(saved.getId())
+                    .orElseThrow(() -> new IllegalStateException("Document vanished after processing: " + finalSaved.getId()));
 
             // 200 DTO
-            DocumentDTO dto = DocumentDTO.from(saved);
+            DocumentDTO dto = DocumentDTO.from(refreshed);
             if ("PROCESSED".equalsIgnoreCase(dto.getStatus())) {
                 log.info("Upload succeeded traceId={} docId={}", traceId, dto.getId());
             } else {
-                log.warn("Upload finished with status={} traceId={} docId={}", dto.getStatus(), traceId, dto.getId());
+                log.warn("Upload finished with status={} traceId={} docId={} err={}",
+                        dto.getStatus(), traceId, dto.getId(), refreshed.getLastError());
             }
             return ResponseEntity.ok(dto);
 
