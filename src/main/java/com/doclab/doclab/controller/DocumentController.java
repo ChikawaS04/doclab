@@ -2,12 +2,17 @@ package com.doclab.doclab.controller;
 
 import com.doclab.doclab.api.PageResponse;
 import com.doclab.doclab.dto.DocumentDTO;
+import com.doclab.doclab.dto.DocumentDetailDTO;
 import com.doclab.doclab.dto.UploadRequest;
 import com.doclab.doclab.model.Document;
 import com.doclab.doclab.service.DocumentService;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,11 +22,12 @@ import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.MDC;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.util.UUID;
-import static com.doclab.doclab.util.UploadConstraints.ALLOWED_TYPES;
+
+import java.io.File;
 import java.io.IOException;
-import java.util.List;
-import java.util.Set;
+import java.util.UUID;
+
+import static com.doclab.doclab.util.UploadConstraints.ALLOWED_TYPES;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -31,19 +37,12 @@ public class DocumentController {
     private static final int  MAX_FILENAME_LEN = 255;
     private static final int  MAX_DOCTYPE_LEN  = 64;
 
-    private static final Set<String> ALLOWED = Set.of(
-            "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/plain"
-    );
-
     private final DocumentService documentService;
+    private static final Logger log = LoggerFactory.getLogger(DocumentController.class);
 
     public DocumentController(DocumentService documentService) {
         this.documentService = documentService;
     }
-
-    private static final Logger log = LoggerFactory.getLogger(DocumentController.class);
 
     // --- POST /api/documents/upload ---
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -95,7 +94,7 @@ public class DocumentController {
 
             // save + process
             saved = documentService.save(req);
-            documentService.process(saved);
+            documentService.process(saved); // your existing pipeline
 
             // 200 DTO
             DocumentDTO dto = DocumentDTO.from(saved);
@@ -118,44 +117,41 @@ public class DocumentController {
         }
     }
 
-
-    // --- GET /api/documents ---
+    // --- GET /api/documents/{id} (DETAIL) ---
     @GetMapping("/{id}")
-    public ResponseEntity<DocumentDTO> getById(@PathVariable UUID id) {
-        return documentService.findById(id)
-                .map(doc -> {
-                    DocumentDTO dto = DocumentDTO.from(doc);
-                    // pre-wire a download link (endpoint will be added later)
-                    String url = org.springframework.web.servlet.support.ServletUriComponentsBuilder
-                            .fromCurrentContextPath()
-                            .path("/api/documents/{id}/download")
-                            .buildAndExpand(doc.getId())
-                            .toUriString();
-                    dto.setDownloadUrl(url);
-                    return ResponseEntity.ok(dto);
-                })
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public ResponseEntity<DocumentDetailDTO> getDetail(@PathVariable UUID id) {
+        DocumentDetailDTO detail = documentService.getDetail(id); // maps summaries + fields
+        return ResponseEntity.ok(detail);
     }
 
-    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<DocumentDTO>> list() {
-        var docs = documentService.findAllSorted()
-                .stream()
-                .map(DocumentDTO::from)
-                .toList();
-        return ResponseEntity.ok(docs);
-    }
-    // (Optional) simple JSON error for uncaught exceptions
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleAny(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Request failed: " + ex.getMessage());
+    // --- GET /api/documents/{id}/download ---
+    @GetMapping("/{id}/download")
+    public ResponseEntity<Resource> download(@PathVariable UUID id) {
+        File file = documentService.resolveFile(id);
+        if (file == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        DocumentDetailDTO dto = documentService.getDetail(id);
+        Resource resource = new FileSystemResource(file);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(ContentDisposition.attachment().filename(dto.fileName()).build());
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+
+        return new ResponseEntity<>(resource, headers, HttpStatus.OK);
     }
 
+    // --- GET /api/documents (PAGED LIST) ---
     @GetMapping
     public ResponseEntity<PageResponse<DocumentDTO>> list(
             @PageableDefault(sort = "uploadDate", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(documentService.list2(pageable));
     }
 
+    // (Optional) simple JSON error for uncaught exceptions
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<?> handleAny(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Request failed: " + ex.getMessage());
+    }
 }

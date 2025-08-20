@@ -1,12 +1,16 @@
 package com.doclab.doclab.service;
 
+import com.doclab.doclab.dto.DocumentDetailDTO;
+import com.doclab.doclab.dto.ExtractedFieldDTO;
+import com.doclab.doclab.dto.SummaryDTO;
+import com.doclab.doclab.model.Document;
+import com.doclab.doclab.repository.DocumentRepository;
+import lombok.RequiredArgsConstructor;
 import com.doclab.doclab.api.PageResponse;
 import org.springframework.data.domain.Page;
 import com.doclab.doclab.client.PythonApiClient;
 import com.doclab.doclab.dto.DocumentDTO;
 import com.doclab.doclab.dto.UploadRequest;
-import com.doclab.doclab.model.Document;
-import com.doclab.doclab.repository.DocumentRepository;
 import com.doclab.doclab.repository.ExtractedFieldRepository;
 import com.doclab.doclab.repository.SummaryRepository;
 import com.doclab.doclab.util.FileStorageUtil;
@@ -23,34 +27,37 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.io.File;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final FileStorageUtil fileStorageUtil;
-
-    // NEW: Python client + repos
     private final PythonApiClient pythonApiClient;
     private final SummaryRepository summaryRepository;
     private final ExtractedFieldRepository extractedFieldRepository;
     private final NlpMapper nlpMapper;
 
-    public DocumentService(
-            DocumentRepository documentRepository,
-            FileStorageUtil fileStorageUtil,
-            PythonApiClient pythonApiClient,
-            SummaryRepository summaryRepository,
-            ExtractedFieldRepository extractedFieldRepository, NlpMapper nlpMapper
-    ) {
-        this.documentRepository = documentRepository;
-        this.fileStorageUtil = fileStorageUtil;
-        this.pythonApiClient = pythonApiClient;
-        this.summaryRepository = summaryRepository;
-        this.extractedFieldRepository = extractedFieldRepository;
-        this.nlpMapper = nlpMapper;
-    }
+//    Manual Constructor  //
+//    public DocumentService(
+//            DocumentRepository documentRepository,
+//            FileStorageUtil fileStorageUtil,
+//            PythonApiClient pythonApiClient,
+//            SummaryRepository summaryRepository,
+//            ExtractedFieldRepository extractedFieldRepository,
+//            NlpMapper nlpMapper
+//    ) {
+//        this.documentRepository = documentRepository;
+//        this.fileStorageUtil = fileStorageUtil;
+//        this.pythonApiClient = pythonApiClient;
+//        this.summaryRepository = summaryRepository;
+//        this.extractedFieldRepository = extractedFieldRepository;
+//        this.nlpMapper = nlpMapper;
+//    }
 
 
     /** Saves the uploaded file + Document row only (no NLP). */
@@ -143,11 +150,52 @@ public class DocumentService {
         );
     }
 
-    /*
-    (Prep for Day 6)
     @Transactional(readOnly = true)
-    public Optional<Document> findById(UUID id) {
-        return documentRepository.findById(id);
+    public DocumentDetailDTO getDetail(UUID id) {
+        Document doc = documentRepository.findWithAllById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found: " + id));
+        return toDetailDTO(doc);
     }
-     */
+
+
+    @Transactional(readOnly = true)
+    public File resolveFile(UUID id) {
+        Document doc = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found: " + id));
+        if (doc.getFilePath() == null || doc.getFilePath().isBlank()) return null;
+        File f = new File(doc.getFilePath());
+        return (f.exists() && f.isFile()) ? f : null;
+    }
+
+
+    private DocumentDetailDTO toDetailDTO(Document doc) {
+        boolean downloadable = doc.getFilePath() != null && !doc.getFilePath().isBlank();
+
+
+        List<SummaryDTO> summaries = doc.getSummaries() == null ? List.of() :
+                doc.getSummaries().stream()
+                        .map(s -> new SummaryDTO(s.getSummaryText())) // adjust getter if different
+                        .collect(Collectors.toList());
+
+
+        List<ExtractedFieldDTO> fields = doc.getExtractedFields() == null ? List.of() :
+                doc.getExtractedFields().stream()
+                        .map(f -> new ExtractedFieldDTO(f.getFieldName(), f.getFieldValue()))
+                        .collect(Collectors.toList());
+
+
+        return new DocumentDetailDTO(
+                doc.getId(),
+                doc.getFileName(),
+                doc.getFileType(),
+                doc.getDocType(),
+                doc.getUploadDate(),
+                doc.getStatus(),
+                doc.getLastError(),
+                summaries,
+                fields,
+                downloadable
+        );
+    }
+
 }
