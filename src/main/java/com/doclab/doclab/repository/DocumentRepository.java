@@ -10,10 +10,10 @@ import java.util.UUID;
 
 public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
-    // For detail view: fetch summaries and fields with the document
-    @EntityGraph(attributePaths = {"extractedFields", "summaries"})
-    Optional<Document> findWithAllById(UUID id);
+    // Detail view: fetch ONE collection eagerly to avoid MultipleBagFetchException
+    @EntityGraph(attributePaths = {"summaries"})
+    Optional<Document> findWithSummariesById(UUID id);
 
-    // For list/index view: sort by newest first
+    // List/index view: newest first
     List<Document> findAllByOrderByUploadDateDesc();
 }

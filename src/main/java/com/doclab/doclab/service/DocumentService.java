@@ -165,11 +165,10 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public DocumentDetailDTO getDetail(UUID id) {
-        Document doc = documentRepository.findWithAllById(id)
+        Document doc = documentRepository.findWithSummariesById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found: " + id));
         return toDetailDTO(doc);
     }
-
 
     @Transactional(readOnly = true)
     public File resolveFile(UUID id) {
@@ -217,16 +216,14 @@ public class DocumentService {
     // ---- MAIN method: accepts title, summaryText, and fields with page numbers
     @Transactional
     public void saveAnalysis(UUID documentId, String title, String summaryText, List<FieldTriple> fields) {
-        var doc = documentRepository.findWithAllById(documentId)
+        var doc = documentRepository.findWithSummariesById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
 
         // 1) Append a new Summary row (keep history)
-        // If you prefer "replace" behavior, delete existing summaries before adding.
         var newSummary = new Summary(doc, title, summaryText);
         doc.addSummary(newSummary);
 
-        // 2) Replace extracted fields (common UX: show latest set only)
-        // Clear existing (orphanRemoval=true will delete orphans)
+        // 2) Replace extracted fields (keep latest only)
         var existing = new java.util.ArrayList<>(doc.getExtractedFields());
         for (var ef : existing) doc.removeExtractedField(ef);
 
@@ -237,7 +234,6 @@ public class DocumentService {
             }
         }
 
-        // Persist changes (owning side is Document; cascade takes care of children)
         documentRepository.save(doc);
     }
 

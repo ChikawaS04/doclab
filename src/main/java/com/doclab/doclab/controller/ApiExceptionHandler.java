@@ -64,6 +64,36 @@ public class ApiExceptionHandler {
                         HttpStatus.INTERNAL_SERVER_ERROR, req));
     }
 
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedMediaType(
+            org.springframework.web.HttpMediaTypeNotSupportedException ex,
+            HttpServletRequest req) {
+
+        HttpStatus status = HttpStatus.UNSUPPORTED_MEDIA_TYPE; // 415
+        String msg = "Unsupported Content-Type: " + ex.getContentType();
+        return ResponseEntity.status(status).body(err(msg, status, req));
+    }
+
+    // 400 for @ModelAttribute binding errors (e.g., @NotNull on file)
+    @ExceptionHandler(org.springframework.validation.BindException.class)
+    public ResponseEntity<Map<String, Object>> handleBind(org.springframework.validation.BindException ex,
+                                                          HttpServletRequest req) {
+        String msg = ex.getFieldErrors().stream()
+                .map(fe -> fe.getField() + " " + fe.getDefaultMessage())
+                .findFirst().orElse("Invalid request");
+        return withTraceHeader(HttpStatus.BAD_REQUEST, err(msg, HttpStatus.BAD_REQUEST, req));
+    }
+
+    // 400 when required multipart part is missing (e.g., no "file" form field)
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingPart(
+            org.springframework.web.multipart.support.MissingServletRequestPartException ex,
+            HttpServletRequest req) {
+        String part = ex.getRequestPartName();
+        String msg = (part != null) ? (part + " is required") : "Missing multipart part";
+        return withTraceHeader(HttpStatus.BAD_REQUEST, err(msg, HttpStatus.BAD_REQUEST, req));
+    }
+
     // ---- Helpers ----
 
     private Map<String, Object> err(String message, HttpStatus status, HttpServletRequest req) {

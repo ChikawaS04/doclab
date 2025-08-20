@@ -149,9 +149,9 @@ public class DocumentController {
     }
 
     // (Optional) simple JSON error for uncaught exceptions
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleAny(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Request failed: " + ex.getMessage());
-    }
+//    @ExceptionHandler(Exception.class)
+//    public ResponseEntity<?> handleAny(Exception ex) {
+//        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                .body("Request failed: " + ex.getMessage());
+//    }
 }
