@@ -4,6 +4,8 @@ import com.doclab.doclab.dto.DocumentDetailDTO;
 import com.doclab.doclab.dto.ExtractedFieldDTO;
 import com.doclab.doclab.dto.SummaryDTO;
 import com.doclab.doclab.model.Document;
+import com.doclab.doclab.model.ExtractedField;
+import com.doclab.doclab.model.Summary;
 import com.doclab.doclab.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import com.doclab.doclab.api.PageResponse;
@@ -27,6 +29,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.io.File;
 
@@ -97,25 +100,34 @@ public class DocumentService {
         try {
             var resp = pythonApiClient.process(resource, document.getFileName());
 
-            // --- Map using NlpMapper (title = filename without extension; summary fallback = "")
-            var summary = nlpMapper.toSummary(document, resp);
-            document.addSummary(summary);
+            // --- Map using your existing mapper
+            var mappedSummary = nlpMapper.toSummary(document, resp);      // Summary entity (has title + summaryText)
+            var mappedFields  = nlpMapper.toFields(document, resp);       // List<ExtractedField> (has name/value/page)
 
-            var fields = nlpMapper.toFields(document, resp);
-            fields.forEach(document::addExtractedField);
+            // ---- Persist via the new service API
+            // Keep summary history (append), replace extracted fields
+            var triples = mappedFields.stream()
+                    .map(f -> new FieldTriple(f.getFieldName(), f.getFieldValue(), f.getPageNumber()))
+                    .toList();
+
+            saveAnalysis(
+                    document.getId(),
+                    mappedSummary.getTitle(),
+                    mappedSummary.getSummaryText(),
+                    triples
+            );
 
             setStatus(document, PROCESSED);
             document.setLastError(null);
-            documentRepository.save(document); // cascades children
+            // saveAnalysis already saved the doc; but save current status/error change:
+            documentRepository.save(document);
 
         } catch (Exception ex) {
-            String traceId = MDC.get("traceId"); // may be null outside controller
+            String traceId = MDC.get("traceId"); // TraceIdFilter should set this; might be null in non-web contexts
             String msg = (ex.getMessage() != null) ? ex.getMessage() : ex.getClass().getSimpleName();
-
-            // keep within DB column (VARCHAR 2000)
             if (msg.length() > 1990) msg = msg.substring(0, 1990) + "...";
 
-            setStatus(document, "FAILED");
+            setStatus(document, FAILED);
             document.setLastError(msg);
             documentRepository.save(document);
 
@@ -123,6 +135,7 @@ public class DocumentService {
             // MVP: do NOT rethrow so controller can return 200 w/ status=FAILED
         }
     }
+
 
     /** Helper that supports either enum or String status fields. */
     private void setStatus(Document document, String statusName) {
@@ -197,5 +210,46 @@ public class DocumentService {
                 downloadable
         );
     }
+
+    // Optional helper input for extracted fields with page numbers
+    public static record FieldTriple(String name, String value, Integer pageNumber) {}
+
+    // ---- MAIN method: accepts title, summaryText, and fields with page numbers
+    @Transactional
+    public void saveAnalysis(UUID documentId, String title, String summaryText, List<FieldTriple> fields) {
+        var doc = documentRepository.findWithAllById(documentId)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
+
+        // 1) Append a new Summary row (keep history)
+        // If you prefer "replace" behavior, delete existing summaries before adding.
+        var newSummary = new Summary(doc, title, summaryText);
+        doc.addSummary(newSummary);
+
+        // 2) Replace extracted fields (common UX: show latest set only)
+        // Clear existing (orphanRemoval=true will delete orphans)
+        var existing = new java.util.ArrayList<>(doc.getExtractedFields());
+        for (var ef : existing) doc.removeExtractedField(ef);
+
+        if (fields != null) {
+            for (var f : fields) {
+                var ef = new ExtractedField(doc, f.name(), f.value(), f.pageNumber());
+                doc.addExtractedField(ef);
+            }
+        }
+
+        // Persist changes (owning side is Document; cascade takes care of children)
+        documentRepository.save(doc);
+    }
+
+    // ---- Convenience overload: if you only have a Map<String,String> without page numbers
+    @Transactional
+    public void saveAnalysis(UUID documentId, String title, String summaryText, Map<String, String> fields) {
+        List<FieldTriple> triples = (fields == null) ? List.of()
+                : fields.entrySet().stream()
+                .map(e -> new FieldTriple(e.getKey(), e.getValue(), null))
+                .toList();
+        saveAnalysis(documentId, title, summaryText, triples);
+    }
+
 
 }
