@@ -86,13 +86,15 @@ public class DocumentService {
      */
     @Transactional
     public void process(Document document) {
-        setStatus(document, PROCESSING);
+        setStatus(document, PROCESSING); // saves PROCESSING
+        // (No flush here; not required)
 
         // Guard: file path must exist
         if (document.getFilePath() == null || document.getFilePath().isBlank()) {
             document.setLastError("Missing file path for document");
             setStatus(document, FAILED);
             documentRepository.save(document);
+            documentRepository.flush(); // ensure FAILED + lastError are persisted
             return;
         }
 
@@ -101,11 +103,10 @@ public class DocumentService {
             var resp = pythonApiClient.process(resource, document.getFileName());
 
             // --- Map using your existing mapper
-            var mappedSummary = nlpMapper.toSummary(document, resp);      // Summary entity (has title + summaryText)
-            var mappedFields  = nlpMapper.toFields(document, resp);       // List<ExtractedField> (has name/value/page)
+            var mappedSummary = nlpMapper.toSummary(document, resp);   // Summary(title, summaryText)
+            var mappedFields  = nlpMapper.toFields(document, resp);    // List<ExtractedField>(name,value,page)
 
-            // ---- Persist via the new service API
-            // Keep summary history (append), replace extracted fields
+            // ---- Persist via the new service API (append summary, replace fields)
             var triples = mappedFields.stream()
                     .map(f -> new FieldTriple(f.getFieldName(), f.getFieldValue(), f.getPageNumber()))
                     .toList();
@@ -115,24 +116,25 @@ public class DocumentService {
                     mappedSummary.getTitle(),
                     mappedSummary.getSummaryText(),
                     triples
-            );
+            ); // saveAnalysis() should also call repository.flush()
 
             setStatus(document, PROCESSED);
             document.setLastError(null);
-            // saveAnalysis already saved the doc; but save current status/error change:
             documentRepository.save(document);
+            documentRepository.flush(); // ✅ force writes before controller returns
 
         } catch (Exception ex) {
-            String traceId = MDC.get("traceId"); // TraceIdFilter should set this; might be null in non-web contexts
+            String traceId = MDC.get("traceId"); // may be null outside web context
             String msg = (ex.getMessage() != null) ? ex.getMessage() : ex.getClass().getSimpleName();
             if (msg.length() > 1990) msg = msg.substring(0, 1990) + "...";
 
             setStatus(document, FAILED);
             document.setLastError(msg);
             documentRepository.save(document);
+            documentRepository.flush(); // ✅ ensure FAILED state is visible immediately
 
             log.error("NLP processing failed traceId={} docId={} err={}", traceId, document.getId(), msg, ex);
-            // MVP: do NOT rethrow so controller can return 200 w/ status=FAILED
+            // MVP: do NOT rethrow so controller can return 200 with status=FAILED
         }
     }
 
@@ -235,17 +237,18 @@ public class DocumentService {
         }
 
         documentRepository.save(doc);
+        documentRepository.flush();
     }
 
-    // ---- Convenience overload: if you only have a Map<String,String> without page numbers
-    @Transactional
-    public void saveAnalysis(UUID documentId, String title, String summaryText, Map<String, String> fields) {
-        List<FieldTriple> triples = (fields == null) ? List.of()
-                : fields.entrySet().stream()
-                .map(e -> new FieldTriple(e.getKey(), e.getValue(), null))
-                .toList();
-        saveAnalysis(documentId, title, summaryText, triples);
-    }
+//    // ---- Convenience overload: if you only have a Map<String,String> without page numbers
+//    @Transactional
+//    public void saveAnalysis(UUID documentId, String title, String summaryText, Map<String, String> fields) {
+//        List<FieldTriple> triples = (fields == null) ? List.of()
+//                : fields.entrySet().stream()
+//                .map(e -> new FieldTriple(e.getKey(), e.getValue(), null))
+//                .toList();
+//        saveAnalysis(documentId, title, summaryText, triples);
+//    }
 
 
 }
