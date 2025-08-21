@@ -96,35 +96,22 @@ public class DocumentController {
             saved = documentService.save(req);
             documentService.process(saved);
 
-            // 🔁 Re-fetch fresh state (status, summaries, fields, lastError)
-            final UUID savedId = saved.getId();  // <-- effectively final
-            var refreshed = documentService.findById(savedId)
-                    .orElseThrow(() -> new IllegalStateException("Document vanished after processing: " + savedId));
+            // 🔁 Re-fetch fresh state and return the rich detail DTO
+            final UUID savedId = saved.getId();
+            var detail = documentService.getDetail(savedId); // includes status, lastError, summaries, fields
 
-
-            // 200 DTO (lean)
-            DocumentDTO dto = DocumentDTO.from(refreshed);
-
-            // Pre-wire a download link
-            String downloadUrl = org.springframework.web.servlet.support.ServletUriComponentsBuilder
-                    .fromCurrentContextPath()
-                    .path("/api/documents/{id}/download")
-                    .buildAndExpand(refreshed.getId())
-                    .toUriString();
-            dto.setDownloadUrl(downloadUrl);
-
-            if ("PROCESSED".equalsIgnoreCase(dto.getStatus())) {
-                log.info("Upload succeeded traceId={} docId={}", traceId, dto.getId());
+            if ("PROCESSED".equalsIgnoreCase(detail.status())) {
+                log.info("Upload succeeded traceId={} docId={}", traceId, detail.id());
             } else {
                 log.warn("Upload finished with status={} traceId={} docId={} err={}",
-                        dto.getStatus(), traceId, dto.getId(), refreshed.getLastError());
+                        detail.status(), traceId, detail.id(), detail.lastError());
             }
-            return ResponseEntity.ok(dto);
+            return ResponseEntity.ok(detail);
 
         } catch (Exception e) {
             log.error("Upload failed traceId={} docId={}", traceId, saved != null ? saved.getId() : "n/a", e);
             if (saved != null) {
-                // Post-save failure: still return DTO so client can poll detail endpoint
+                // Post-save failure: still return lean DTO so client can retry or poll detail endpoint
                 return ResponseEntity.ok(DocumentDTO.from(saved));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -133,6 +120,7 @@ public class DocumentController {
             MDC.clear();
         }
     }
+
 
     // --- GET /api/documents/{id} (DETAIL) ---
     @GetMapping("/{id}")
