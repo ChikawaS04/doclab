@@ -86,55 +86,64 @@ public class DocumentService {
      */
     @Transactional
     public void process(Document document) {
-        setStatus(document, PROCESSING); // saves PROCESSING
-        // (No flush here; not required)
+        // Always work with a managed entity
+        final UUID id = document.getId();
+        Document managed = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found: " + id));
+
+        log.info("PROC start id={} status={}", managed.getId(), managed.getStatus());
+
+        // Status → PROCESSING
+        setStatus(managed, PROCESSING);
 
         // Guard: file path must exist
-        if (document.getFilePath() == null || document.getFilePath().isBlank()) {
-            document.setLastError("Missing file path for document");
-            setStatus(document, FAILED);
-            documentRepository.save(document);
-            documentRepository.flush(); // ensure FAILED + lastError are persisted
+        if (managed.getFilePath() == null || managed.getFilePath().isBlank()) {
+            managed.setLastError("Missing file path for document");
+            setStatus(managed, FAILED);
+            documentRepository.save(managed);
+            documentRepository.flush();
+            log.info("PROC end (no path) id={} status={}", managed.getId(), managed.getStatus());
             return;
         }
 
-        var resource = new FileSystemResource(Path.of(document.getFilePath()));
+        var resource = new FileSystemResource(Path.of(managed.getFilePath()));
         try {
-            var resp = pythonApiClient.process(resource, document.getFileName());
+            log.info("PROC call Python id={}", managed.getId());
+            var resp = pythonApiClient.process(resource, managed.getFileName());
 
-            // --- Map using your existing mapper
-            var mappedSummary = nlpMapper.toSummary(document, resp);   // Summary(title, summaryText)
-            var mappedFields  = nlpMapper.toFields(document, resp);    // List<ExtractedField>(name,value,page)
+            var mappedSummary = nlpMapper.toSummary(managed, resp); // Summary(title, summaryText)
+            var mappedFields  = nlpMapper.toFields(managed, resp);  // List<ExtractedField>(name,value,page)
 
-            // ---- Persist via the new service API (append summary, replace fields)
+            log.info("PROC mapped id={} summaryTitle='{}' fields={}",
+                    managed.getId(),
+                    mappedSummary != null ? mappedSummary.getTitle() : "null",
+                    mappedFields != null ? mappedFields.size() : 0);
+
+            // Persist analysis (append summary, replace fields)
             var triples = mappedFields.stream()
                     .map(f -> new FieldTriple(f.getFieldName(), f.getFieldValue(), f.getPageNumber()))
                     .toList();
+            saveAnalysis(managed.getId(), mappedSummary.getTitle(), mappedSummary.getSummaryText(), triples);
 
-            saveAnalysis(
-                    document.getId(),
-                    mappedSummary.getTitle(),
-                    mappedSummary.getSummaryText(),
-                    triples
-            ); // saveAnalysis() should also call repository.flush()
+            // Finalize
+            setStatus(managed, PROCESSED);
+            managed.setLastError(null);
+            documentRepository.save(managed);
+            documentRepository.flush();
 
-            setStatus(document, PROCESSED);
-            document.setLastError(null);
-            documentRepository.save(document);
-            documentRepository.flush(); // ✅ force writes before controller returns
+            log.info("PROC end (OK) id={} status={}", managed.getId(), managed.getStatus());
 
         } catch (Exception ex) {
-            String traceId = MDC.get("traceId"); // may be null outside web context
+            String traceId = MDC.get("traceId");
             String msg = (ex.getMessage() != null) ? ex.getMessage() : ex.getClass().getSimpleName();
             if (msg.length() > 1990) msg = msg.substring(0, 1990) + "...";
 
-            setStatus(document, FAILED);
-            document.setLastError(msg);
-            documentRepository.save(document);
-            documentRepository.flush(); // ✅ ensure FAILED state is visible immediately
+            setStatus(managed, FAILED);
+            managed.setLastError(msg);
+            documentRepository.save(managed);
+            documentRepository.flush();
 
-            log.error("NLP processing failed traceId={} docId={} err={}", traceId, document.getId(), msg, ex);
-            // MVP: do NOT rethrow so controller can return 200 with status=FAILED
+            log.error("NLP processing failed traceId={} docId={} err={}", traceId, managed.getId(), msg, ex);
         }
     }
 
@@ -186,15 +195,14 @@ public class DocumentService {
         boolean downloadable = doc.getFilePath() != null && !doc.getFilePath().isBlank();
 
 
-        List<SummaryDTO> summaries = doc.getSummaries() == null ? List.of() :
+        List<SummaryDTO> summaries = (doc.getSummaries() == null) ? List.of() :
                 doc.getSummaries().stream()
-                        .map(s -> new SummaryDTO(s.getSummaryText())) // adjust getter if different
+                        .map(s -> new SummaryDTO(s.getTitle(), s.getSummaryText()))   // <-- include title
                         .collect(Collectors.toList());
 
-
-        List<ExtractedFieldDTO> fields = doc.getExtractedFields() == null ? List.of() :
+        List<ExtractedFieldDTO> fields = (doc.getExtractedFields() == null) ? List.of() :
                 doc.getExtractedFields().stream()
-                        .map(f -> new ExtractedFieldDTO(f.getFieldName(), f.getFieldValue()))
+                        .map(f -> new ExtractedFieldDTO(f.getFieldName(), f.getFieldValue(), f.getPageNumber())) // <-- include page if DTO supports it
                         .collect(Collectors.toList());
 
 
