@@ -1,10 +1,10 @@
 package com.doclab.doclab.model;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
+
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -15,14 +15,11 @@ import java.util.UUID;
                 @Index(name = "idx_extracted_field_field_name", columnList = "field_name")
         }
 )
-@Getter
-@Setter
-@NoArgsConstructor
 public class ExtractedField {
 
     @Id
-    @GeneratedValue
-    @org.hibernate.annotations.GenericGenerator(name = "uuid2", strategy = "uuid2")
+    @GeneratedValue(generator = "uuid2")
+    @GenericGenerator(name = "uuid2", strategy = "uuid2")
     @Column(columnDefinition = "UUID")
     private UUID id;
 
@@ -43,11 +40,59 @@ public class ExtractedField {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    // --- Constructors ---
+    public ExtractedField() {
+        // JPA
+    }
+
     public ExtractedField(Document document, String fieldName, String fieldValue, Integer pageNumber) {
         this.document = document;
         this.fieldName = fieldName;
         this.fieldValue = fieldValue;
         this.pageNumber = pageNumber;
         this.createdAt = LocalDateTime.now();
+    }
+
+    // --- Getters & Setters ---
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+
+    public Document getDocument() { return document; }
+    public void setDocument(Document document) { this.document = document; }
+
+    public String getFieldName() { return fieldName; }
+    public void setFieldName(String fieldName) { this.fieldName = fieldName; }
+
+    public String getFieldValue() { return fieldValue; }
+    public void setFieldValue(String fieldValue) { this.fieldValue = fieldValue; }
+
+    public Integer getPageNumber() { return pageNumber; }
+    public void setPageNumber(Integer pageNumber) { this.pageNumber = pageNumber; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    // --- equals & hashCode (by id) ---
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ExtractedField)) return false;
+        ExtractedField that = (ExtractedField) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return (id != null ? id.hashCode() : 0);
+    }
+
+    @Override
+    public String toString() {
+        return "ExtractedField{" +
+                "id=" + id +
+                ", fieldName='" + fieldName + '\'' +
+                ", pageNumber=" + pageNumber +
+                ", createdAt=" + createdAt +
+                '}';
     }
 }

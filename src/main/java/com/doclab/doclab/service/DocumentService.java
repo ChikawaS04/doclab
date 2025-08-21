@@ -1,42 +1,45 @@
 package com.doclab.doclab.service;
 
+import com.doclab.doclab.api.PageResponse;
+import com.doclab.doclab.client.PythonApiClient;
+import com.doclab.doclab.dto.DocumentDTO;
 import com.doclab.doclab.dto.DocumentDetailDTO;
 import com.doclab.doclab.dto.ExtractedFieldDTO;
 import com.doclab.doclab.dto.SummaryDTO;
+import com.doclab.doclab.dto.UploadRequest;
 import com.doclab.doclab.model.Document;
 import com.doclab.doclab.model.ExtractedField;
 import com.doclab.doclab.model.Summary;
 import com.doclab.doclab.repository.DocumentRepository;
-import lombok.RequiredArgsConstructor;
-import com.doclab.doclab.api.PageResponse;
-import org.springframework.data.domain.Page;
-import com.doclab.doclab.client.PythonApiClient;
-import com.doclab.doclab.dto.DocumentDTO;
-import com.doclab.doclab.dto.UploadRequest;
 import com.doclab.doclab.repository.ExtractedFieldRepository;
 import com.doclab.doclab.repository.SummaryRepository;
 import com.doclab.doclab.util.FileStorageUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import static com.doclab.doclab.model.DocumentStatus.*;
-import java.util.Optional;
-import java.util.UUID;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
+
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
-import java.io.File;
 
-@Slf4j
+import static com.doclab.doclab.model.DocumentStatus.FAILED;
+import static com.doclab.doclab.model.DocumentStatus.PROCESSED;
+import static com.doclab.doclab.model.DocumentStatus.PROCESSING;
+
 @Service
-@RequiredArgsConstructor
 public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private final DocumentRepository documentRepository;
     private final FileStorageUtil fileStorageUtil;
@@ -45,23 +48,22 @@ public class DocumentService {
     private final ExtractedFieldRepository extractedFieldRepository;
     private final NlpMapper nlpMapper;
 
-//    Manual Constructor  //
-//    public DocumentService(
-//            DocumentRepository documentRepository,
-//            FileStorageUtil fileStorageUtil,
-//            PythonApiClient pythonApiClient,
-//            SummaryRepository summaryRepository,
-//            ExtractedFieldRepository extractedFieldRepository,
-//            NlpMapper nlpMapper
-//    ) {
-//        this.documentRepository = documentRepository;
-//        this.fileStorageUtil = fileStorageUtil;
-//        this.pythonApiClient = pythonApiClient;
-//        this.summaryRepository = summaryRepository;
-//        this.extractedFieldRepository = extractedFieldRepository;
-//        this.nlpMapper = nlpMapper;
-//    }
-
+    // --- Explicit constructor (replaces @RequiredArgsConstructor) ---
+    public DocumentService(
+            DocumentRepository documentRepository,
+            FileStorageUtil fileStorageUtil,
+            PythonApiClient pythonApiClient,
+            SummaryRepository summaryRepository,
+            ExtractedFieldRepository extractedFieldRepository,
+            NlpMapper nlpMapper
+    ) {
+        this.documentRepository = documentRepository;
+        this.fileStorageUtil = fileStorageUtil;
+        this.pythonApiClient = pythonApiClient;
+        this.summaryRepository = summaryRepository;
+        this.extractedFieldRepository = extractedFieldRepository;
+        this.nlpMapper = nlpMapper;
+    }
 
     /** Saves the uploaded file + Document row only (no NLP). */
     public Document save(UploadRequest req) throws IOException {
@@ -74,7 +76,6 @@ public class DocumentService {
         d.setFilePath(storedPath);
         d.setDocType(req.getDocType());           // may be null for now
         d.setUploadDate(LocalDateTime.now());
-        // If you switched to enum, use: d.setStatus(DocumentStatus.UPLOADED);
         d.setStatus("UPLOADED");                  // string fallback
 
         return documentRepository.save(d);
@@ -147,7 +148,6 @@ public class DocumentService {
         }
     }
 
-
     /** Helper that supports either enum or String status fields. */
     private void setStatus(Document document, String statusName) {
         document.setStatus(statusName);   // Document.status is a String
@@ -190,21 +190,18 @@ public class DocumentService {
         return (f.exists() && f.isFile()) ? f : null;
     }
 
-
     private DocumentDetailDTO toDetailDTO(Document doc) {
         boolean downloadable = doc.getFilePath() != null && !doc.getFilePath().isBlank();
 
-
         List<SummaryDTO> summaries = (doc.getSummaries() == null) ? List.of() :
                 doc.getSummaries().stream()
-                        .map(s -> new SummaryDTO(s.getTitle(), s.getSummaryText()))   // <-- include title
+                        .map(s -> new SummaryDTO(s.getTitle(), s.getSummaryText()))
                         .collect(Collectors.toList());
 
         List<ExtractedFieldDTO> fields = (doc.getExtractedFields() == null) ? List.of() :
                 doc.getExtractedFields().stream()
-                        .map(f -> new ExtractedFieldDTO(f.getFieldName(), f.getFieldValue(), f.getPageNumber())) // <-- include page if DTO supports it
+                        .map(f -> new ExtractedFieldDTO(f.getFieldName(), f.getFieldValue(), f.getPageNumber()))
                         .collect(Collectors.toList());
-
 
         return new DocumentDetailDTO(
                 doc.getId(),
@@ -248,7 +245,7 @@ public class DocumentService {
         documentRepository.flush();
     }
 
-//    // ---- Convenience overload: if you only have a Map<String,String> without page numbers
+//    // Convenience overload: if you only have a Map<String,String> without page numbers
 //    @Transactional
 //    public void saveAnalysis(UUID documentId, String title, String summaryText, Map<String, String> fields) {
 //        List<FieldTriple> triples = (fields == null) ? List.of()
@@ -257,6 +254,4 @@ public class DocumentService {
 //                .toList();
 //        saveAnalysis(documentId, title, summaryText, triples);
 //    }
-
-
 }

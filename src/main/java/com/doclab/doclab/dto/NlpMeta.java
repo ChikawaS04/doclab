@@ -1,12 +1,9 @@
 package com.doclab.doclab.dto;
 
-
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import lombok.Data;
 
-@Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class NlpMeta {
     // JSON field is "docType"
@@ -15,6 +12,13 @@ public class NlpMeta {
     private String docType;
 
     private String model;
+
+    public NlpMeta() {}
+
+    public NlpMeta(String docType, String model) {
+        this.docType = docType;
+        this.model = model;
+    }
 
     public String getDocType() { return docType; }
     public void setDocType(String docType) { this.docType = docType; }
