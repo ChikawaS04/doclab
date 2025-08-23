@@ -226,17 +226,23 @@ public class DocumentService {
         var doc = documentRepository.findWithSummariesById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
 
-        // 1) Append a new Summary row (keep history)
+        // Append a new Summary (always safe)
         var newSummary = new Summary(doc, title, summaryText);
         doc.addSummary(newSummary);
 
-        // 2) Replace extracted fields (keep latest only)
+        // Replace fields
         var existing = new java.util.ArrayList<>(doc.getExtractedFields());
         for (var ef : existing) doc.removeExtractedField(ef);
 
         if (fields != null) {
             for (var f : fields) {
-                var ef = new ExtractedField(doc, f.name(), f.value(), f.pageNumber());
+                String name  = (f.name()  == null ? null : f.name().trim());
+                String value = (f.value() == null ? null : f.value().trim());
+                if (name == null || name.isEmpty() || value == null || value.isEmpty()) {
+                    log.warn("Skipping empty field for doc {} -> name='{}' value='{}'", documentId, name, value);
+                    continue;
+                }
+                var ef = new ExtractedField(doc, name, value, f.pageNumber());
                 doc.addExtractedField(ef);
             }
         }
@@ -244,6 +250,7 @@ public class DocumentService {
         documentRepository.save(doc);
         documentRepository.flush();
     }
+
 
 //    // Convenience overload: if you only have a Map<String,String> without page numbers
 //    @Transactional

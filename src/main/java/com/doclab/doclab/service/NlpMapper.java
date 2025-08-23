@@ -12,32 +12,48 @@ import java.util.List;
 @Component
 public class NlpMapper {
 
+    private static String trimToNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
     public Summary toSummary(Document doc, PythonNlpResponse resp) {
         Summary s = new Summary();
         s.setDocument(doc);
 
+        // title from file name (fallback)
         String fileName = doc.getFileName() == null ? "" : doc.getFileName();
         String base = fileName.contains(".")
                 ? fileName.substring(0, fileName.lastIndexOf('.'))
                 : fileName;
         s.setTitle(base.isBlank() ? "Untitled" : base);
 
-        s.setSummaryText(resp.getSummary() == null ? "" : resp.getSummary());
+        // summary text (allow empty string but never null)
+        String summaryText = resp == null ? "" : (resp.getSummary() == null ? "" : resp.getSummary());
+        s.setSummaryText(summaryText);
         return s;
     }
 
     public List<ExtractedField> toFields(Document doc, PythonNlpResponse resp) {
         List<ExtractedField> out = new ArrayList<>();
-        if (resp.getEntities() == null) return out;
+        if (resp == null || resp.getEntities() == null) return out;
 
         resp.getEntities().forEach(e -> {
+            String name  = trimToNull(e.getLabel());
+            String value = trimToNull(e.getText());
+            if (name == null || value == null) {
+                // skip bad/blank entities so DB NOT NULLs aren’t violated
+                return;
+            }
             ExtractedField ef = new ExtractedField();
             ef.setDocument(doc);
-            ef.setFieldName(e.getLabel());
-            ef.setFieldValue(e.getText());
+            ef.setFieldName(name);
+            ef.setFieldValue(value);
             ef.setPageNumber(null); // unknown in MVP
             out.add(ef);
         });
+
         return out;
     }
 }

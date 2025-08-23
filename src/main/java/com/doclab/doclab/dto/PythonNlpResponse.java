@@ -5,6 +5,7 @@ import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PythonNlpResponse {
+    private String title;
     private String summary;
     private NlpMeta meta;
     private List<NlpEntity> entities;   // always present (maybe "")
