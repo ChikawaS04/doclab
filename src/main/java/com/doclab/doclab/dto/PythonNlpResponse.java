@@ -26,4 +26,7 @@ public class PythonNlpResponse {
 
     public List<NlpEntity> getEntities() { return entities; }
     public void setEntities(List<NlpEntity> entities) { this.entities = entities; }
+
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 }

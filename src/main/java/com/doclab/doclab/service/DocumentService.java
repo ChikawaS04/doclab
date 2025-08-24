@@ -110,7 +110,11 @@ public class DocumentService {
         var resource = new FileSystemResource(Path.of(managed.getFilePath()));
         try {
             log.info("PROC call Python id={}", managed.getId());
+            // Update document type with Python API detection result
             var resp = pythonApiClient.process(resource, managed.getFileName());
+            if (resp.getMeta() != null && resp.getMeta().getDocType() != null) {
+                managed.setDocType(resp.getMeta().getDocType());
+            }
 
             var mappedSummary = nlpMapper.toSummary(managed, resp); // Summary(title, summaryText)
             var mappedFields  = nlpMapper.toFields(managed, resp);  // List<ExtractedField>(name,value,page)

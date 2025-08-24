@@ -22,16 +22,27 @@ public class NlpMapper {
         Summary s = new Summary();
         s.setDocument(doc);
 
-        // title from file name (fallback)
-        String fileName = doc.getFileName() == null ? "" : doc.getFileName();
-        String base = fileName.contains(".")
-                ? fileName.substring(0, fileName.lastIndexOf('.'))
-                : fileName;
-        s.setTitle(base.isBlank() ? "Untitled" : base);
+        // --- Prefer Python-provided title, else fallback to filename base
+        String title = null;
+        if (resp != null) {
+            title = trimToNull(resp.getTitle());
+        }
 
-        // summary text (allow empty string but never null)
-        String summaryText = resp == null ? "" : (resp.getSummary() == null ? "" : resp.getSummary());
+        if (title == null) {
+            String fileName = doc.getFileName() == null ? "" : doc.getFileName();
+            String base = fileName.contains(".")
+                    ? fileName.substring(0, fileName.lastIndexOf('.'))
+                    : fileName;
+            title = base.isBlank() ? "Untitled" : base;
+        }
+        s.setTitle(title);
+
+        // --- Summary text (never null, allow empty string)
+        String summaryText = (resp == null || resp.getSummary() == null)
+                ? ""
+                : resp.getSummary();
         s.setSummaryText(summaryText);
+
         return s;
     }
 
