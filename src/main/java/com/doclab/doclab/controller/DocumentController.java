@@ -139,9 +139,21 @@ public class DocumentController {
         DocumentDetailDTO dto = documentService.getDetail(id);
         Resource resource = new FileSystemResource(file);
 
+        // Use real MIME if available; fallback to octet-stream
+        MediaType mediaType;
+        try {
+            String mt = java.nio.file.Files.probeContentType(file.toPath());
+            mediaType = (mt != null ? MediaType.parseMediaType(mt) : MediaType.APPLICATION_OCTET_STREAM);
+        } catch (Exception e) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentDisposition(ContentDisposition.attachment().filename(dto.fileName()).build());
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        // IMPORTANT: inline -> allows in-browser preview (<embed>)
+        headers.setContentDisposition(
+                ContentDisposition.inline().filename(dto.fileName(), java.nio.charset.StandardCharsets.UTF_8).build()
+        );
+        headers.setContentType(mediaType);
 
         return new ResponseEntity<>(resource, headers, HttpStatus.OK);
     }
@@ -149,8 +161,10 @@ public class DocumentController {
     // --- GET /api/documents (PAGED LIST) ---
     @GetMapping
     public ResponseEntity<PageResponse<DocumentDTO>> list(
-            @PageableDefault(sort = "uploadDate", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(documentService.list2(pageable));
+            @PageableDefault(sort = "uploadDate", direction = Sort.Direction.DESC) Pageable pageable,
+            @RequestParam(required = false) String q
+    ) {
+        return ResponseEntity.ok(documentService.list2(pageable, q));
     }
 
     // (Optional) simple JSON error for uncaught exceptions

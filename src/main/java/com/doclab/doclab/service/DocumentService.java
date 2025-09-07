@@ -2,11 +2,7 @@ package com.doclab.doclab.service;
 
 import com.doclab.doclab.api.PageResponse;
 import com.doclab.doclab.client.PythonApiClient;
-import com.doclab.doclab.dto.DocumentDTO;
-import com.doclab.doclab.dto.DocumentDetailDTO;
-import com.doclab.doclab.dto.ExtractedFieldDTO;
-import com.doclab.doclab.dto.SummaryDTO;
-import com.doclab.doclab.dto.UploadRequest;
+import com.doclab.doclab.dto.*;
 import com.doclab.doclab.model.Document;
 import com.doclab.doclab.model.ExtractedField;
 import com.doclab.doclab.model.Summary;
@@ -116,19 +112,17 @@ public class DocumentService {
                 managed.setDocType(resp.getMeta().getDocType());
             }
 
-            var mappedSummary = nlpMapper.toSummary(managed, resp); // Summary(title, summaryText)
-            var mappedFields  = nlpMapper.toFields(managed, resp);  // List<ExtractedField>(name,value,page)
+            var mappedSummary = nlpMapper.toSummary(managed, resp); // may be null
+            var mappedFields  = nlpMapper.toFields(managed, resp);  // may be null
 
-            log.info("PROC mapped id={} summaryTitle='{}' fields={}",
-                    managed.getId(),
-                    mappedSummary != null ? mappedSummary.getTitle() : "null",
-                    mappedFields != null ? mappedFields.size() : 0);
-
-            // Persist analysis (append summary, replace fields)
-            var triples = mappedFields.stream()
+            String title = (mappedSummary != null ? mappedSummary.getTitle() : null);
+            String text  = (mappedSummary != null ? mappedSummary.getSummaryText() : null);
+            var triples  = (mappedFields == null ? List.<FieldTriple>of()
+                    : mappedFields.stream()
                     .map(f -> new FieldTriple(f.getFieldName(), f.getFieldValue(), f.getPageNumber()))
-                    .toList();
-            saveAnalysis(managed.getId(), mappedSummary.getTitle(), mappedSummary.getSummaryText(), triples);
+                    .toList());
+
+            saveAnalysis(managed.getId(), title, text, triples);
 
             // Finalize
             setStatus(managed, PROCESSED);
@@ -171,10 +165,18 @@ public class DocumentService {
         return documentRepository.findAllByOrderByUploadDateDesc();
     }
 
-    public PageResponse<DocumentDTO> list2(Pageable pageable) {
-        Page<DocumentDTO> p = documentRepository.findAll(pageable).map(DocumentDTO::from);
+    public PageResponse<DocumentDTO> list2(Pageable pageable, String q) {
+        Page<Document> page;
+        if (q != null && !q.isBlank()) {
+            String s = q.trim();
+            page = documentRepository.findByFileNameContainingIgnoreCaseOrDocTypeContainingIgnoreCase(s, s, pageable);
+        } else {
+            page = documentRepository.findAll(pageable);
+        }
+        Page<DocumentDTO> mapped = page.map(DocumentDTO::from);
         return new PageResponse<>(
-                p.getContent(), p.getNumber(), p.getSize(), p.getTotalElements(), p.getTotalPages(), p.isLast()
+                mapped.getContent(), mapped.getNumber(), mapped.getSize(),
+                mapped.getTotalElements(), mapped.getTotalPages(), mapped.isLast()
         );
     }
 
