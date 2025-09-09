@@ -167,10 +167,10 @@ public class DocumentController {
         return ResponseEntity.ok(documentService.list2(pageable, q));
     }
 
-    // (Optional) simple JSON error for uncaught exceptions
-//    @ExceptionHandler(Exception.class)
-//    public ResponseEntity<?> handleAny(Exception ex) {
-//        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-//                .body("Request failed: " + ex.getMessage());
-//    }
+    // --- DELETE /api/documents/{id} ---
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        documentService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 }

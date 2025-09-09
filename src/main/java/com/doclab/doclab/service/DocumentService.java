@@ -257,14 +257,10 @@ public class DocumentService {
         documentRepository.flush();
     }
 
+    @Transactional
+    public void delete(UUID id) {
+        // Remove summaries + fields (cascade should handle if JPA mappings are correct)
+        documentRepository.deleteById(id);
+    }
 
-//    // Convenience overload: if you only have a Map<String,String> without page numbers
-//    @Transactional
-//    public void saveAnalysis(UUID documentId, String title, String summaryText, Map<String, String> fields) {
-//        List<FieldTriple> triples = (fields == null) ? List.of()
-//                : fields.entrySet().stream()
-//                .map(e -> new FieldTriple(e.getKey(), e.getValue(), null))
-//                .toList();
-//        saveAnalysis(documentId, title, summaryText, triples);
-//    }
 }
