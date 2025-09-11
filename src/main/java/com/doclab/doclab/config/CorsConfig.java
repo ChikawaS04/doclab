@@ -10,7 +10,6 @@ import java.util.List;
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
-    // e.g. "http://localhost:5173,https://staging.example.com"
     @Value("#{'${doclab.cors.allowed-origins:http://localhost:5173}'.split(',')}")
     private List<String> allowedOrigins;
 
