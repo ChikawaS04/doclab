@@ -12,7 +12,7 @@ public class CorsConfig implements WebMvcConfigurer {
 
     @Value("#{'${doclab.cors.allowed-origins:http://localhost:5173}'.split(',')}")
     private List<String> allowedOrigins;
-/// //////
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
