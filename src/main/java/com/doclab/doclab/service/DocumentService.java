@@ -166,19 +166,29 @@ public class DocumentService {
     }
 
     public PageResponse<DocumentDTO> list2(Pageable pageable, String q) {
-        Page<Document> page;
-        if (q != null && !q.isBlank()) {
-            String s = q.trim();
-            page = documentRepository.findByFileNameContainingIgnoreCaseOrDocTypeContainingIgnoreCase(s, s, pageable);
-        } else {
-            page = documentRepository.findAll(pageable);
+        if (q == null || q.isBlank()) {
+            var p = documentRepository.findAll(pageable).map(DocumentDTO::from);
+            return new PageResponse<>(p.getContent(), p.getNumber(), p.getSize(), p.getTotalElements(), p.getTotalPages(), p.isLast());
         }
-        Page<DocumentDTO> mapped = page.map(DocumentDTO::from);
-        return new PageResponse<>(
-                mapped.getContent(), mapped.getNumber(), mapped.getSize(),
-                mapped.getTotalElements(), mapped.getTotalPages(), mapped.isLast()
-        );
+
+        // If q is UUID → exact id match
+        try {
+            UUID id = UUID.fromString(q.trim());
+            return documentRepository.findById(id)
+                    .map(DocumentDTO::from)
+                    .map(dto -> new PageResponse<>(List.of(dto), pageable.getPageNumber(), pageable.getPageSize(), 1, 1, true))
+                    .orElseGet(() -> new PageResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0, true));
+        } catch (IllegalArgumentException ignore) {
+            // not a UUID → fall through to name/type search
+        }
+
+        var p = documentRepository
+                .findByFileNameContainingIgnoreCaseOrDocTypeContainingIgnoreCase(q, q, pageable)
+                .map(DocumentDTO::from);
+
+        return new PageResponse<>(p.getContent(), p.getNumber(), p.getSize(), p.getTotalElements(), p.getTotalPages(), p.isLast());
     }
+
 
     @Transactional(readOnly = true)
     public DocumentDetailDTO getDetail(UUID id) {

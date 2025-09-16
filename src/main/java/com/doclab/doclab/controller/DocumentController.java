@@ -162,7 +162,7 @@ public class DocumentController {
     @GetMapping
     public ResponseEntity<PageResponse<DocumentDTO>> list(
             @PageableDefault(sort = "uploadDate", direction = Sort.Direction.DESC) Pageable pageable,
-            @RequestParam(required = false) String q
+            @RequestParam(value = "q", required = false) String q
     ) {
         return ResponseEntity.ok(documentService.list2(pageable, q));
     }
